@@ -27,19 +27,19 @@ import javax.net.ssl.X509TrustManager;
 
 public class EasyX509TrustManager implements X509TrustManager {
 
-    private final X509TrustManager delegate;
-
+    private static final int IDX_KEY_CERT_SIGN = 5;
     private List<X509Certificate> trustedServerCertificates;
-
-    public EasyX509TrustManager(final X509TrustManager delegate) {
-        this.delegate = delegate;
-    }
 
     public List<X509Certificate> getTrustedServerCertificates() {
         return trustedServerCertificates;
     }
 
     public void setTrustedServerCertificates(final List<X509Certificate> certificates) {
+        for (final X509Certificate trustedServerCertificate : certificates) {
+            if (isCaCertificate(trustedServerCertificate)) {
+                throw new IllegalArgumentException("Not a server certificate");
+            }
+        }
         this.trustedServerCertificates = certificates;
     }
 
@@ -61,6 +61,11 @@ public class EasyX509TrustManager implements X509TrustManager {
         throws CertificateException {
 
         for (final X509Certificate cert : chain) {
+            if (isCaCertificate(cert)) {
+                // CA certificate
+                continue;
+            }
+
             for (final X509Certificate trustedServerCertificate : trustedServerCertificates) {
                 if (cert.equals(trustedServerCertificate)) {
                     cert.checkValidity();
@@ -70,6 +75,13 @@ public class EasyX509TrustManager implements X509TrustManager {
         }
 
         throw new CertificateException("Server certificate mismatch");
+    }
+
+    private static boolean isCaCertificate(final X509Certificate cert) {
+        final boolean[] keyUsage = cert.getKeyUsage();
+        return keyUsage != null
+            && keyUsage.length > IDX_KEY_CERT_SIGN
+            && keyUsage[IDX_KEY_CERT_SIGN];
     }
 
     @Override

@@ -23,8 +23,6 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.cert.CertificateException;
@@ -36,7 +34,6 @@ import java.util.List;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
 public class GelfTcpTlsAppender extends GelfTcpAppender {
@@ -77,8 +74,7 @@ public class GelfTcpTlsAppender extends GelfTcpAppender {
             }
 
             try {
-                final EasyX509TrustManager trustManager =
-                    new EasyX509TrustManager(getDefaultTrustManager());
+                final EasyX509TrustManager trustManager = new EasyX509TrustManager();
                 trustManager.setTrustedServerCertificates(trustedServerCertificates);
 
                 return configureSslFactory(trustManager);
@@ -105,22 +101,6 @@ public class GelfTcpTlsAppender extends GelfTcpAppender {
         final SSLContext context = SSLContext.getInstance("TLS");
         context.init(null, new TrustManager[]{trustManager}, new SecureRandom());
         return context.getSocketFactory();
-    }
-
-    private static X509TrustManager getDefaultTrustManager()
-        throws NoSuchAlgorithmException, KeyStoreException {
-
-        final TrustManagerFactory trustManagerFactory =
-            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        trustManagerFactory.init((KeyStore) null);
-
-        for (final TrustManager trustManager : trustManagerFactory.getTrustManagers()) {
-            if (trustManager instanceof X509TrustManager) {
-                return (X509TrustManager) trustManager;
-            }
-        }
-
-        throw new NoSuchAlgorithmException("No X509TrustManager found");
     }
 
     private static TrustManager buildNoopTrustManager() {
