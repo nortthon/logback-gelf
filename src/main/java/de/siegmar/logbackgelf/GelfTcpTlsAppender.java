@@ -19,14 +19,24 @@
 
 package de.siegmar.logbackgelf;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
 public class GelfTcpTlsAppender extends GelfTcpAppender {
@@ -36,6 +46,8 @@ public class GelfTcpTlsAppender extends GelfTcpAppender {
      */
     private boolean trustAllCertificates;
 
+    private List<X509Certificate> trustedServerCertificates = new ArrayList<>();
+
     public boolean isTrustAllCertificates() {
         return trustAllCertificates;
     }
@@ -44,14 +56,41 @@ public class GelfTcpTlsAppender extends GelfTcpAppender {
         this.trustAllCertificates = trustAllCertificates;
     }
 
+    public void addTrustedServerCertificate(final String trustedServerCertificate)
+        throws CertificateException {
+
+        trustedServerCertificates.add(readCert(trustedServerCertificate));
+    }
+
+    private X509Certificate readCert(final String cert) throws CertificateException {
+        final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
+        return (X509Certificate) certificateFactory.generateCertificate(
+            new ByteArrayInputStream(cert.getBytes(StandardCharsets.US_ASCII)));
+    }
+
     @Override
     protected SSLSocketFactory initSocketFactory() {
+        if (!trustedServerCertificates.isEmpty()) {
+            if (trustAllCertificates) {
+                throw new IllegalStateException("TrustAllCertificates is not possible when "
+                    + "configuring server and/or CA certificates explicitly");
+            }
+
+            try {
+                final EasyX509TrustManager trustManager =
+                    new EasyX509TrustManager(getDefaultTrustManager());
+                trustManager.setTrustedServerCertificates(trustedServerCertificates);
+
+                return configureSslFactory(trustManager);
+            } catch (final GeneralSecurityException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
         if (trustAllCertificates) {
             addWarn("Enable trustAllCertificates - don't use this in production!");
             try {
-                final SSLContext context = SSLContext.getInstance("TLS");
-                context.init(null, buildNoopTrustManagers(), new SecureRandom());
-                return context.getSocketFactory();
+                return configureSslFactory(buildNoopTrustManager());
             } catch (final NoSuchAlgorithmException | KeyManagementException e) {
                 throw new IllegalStateException(e);
             }
@@ -60,21 +99,41 @@ public class GelfTcpTlsAppender extends GelfTcpAppender {
         return (SSLSocketFactory) SSLSocketFactory.getDefault();
     }
 
-    private static TrustManager[] buildNoopTrustManagers() {
-        return new TrustManager[] {
-            new X509TrustManager() {
-                public X509Certificate[] getAcceptedIssuers() {
-                    return null;
-                }
+    private SSLSocketFactory configureSslFactory(final TrustManager trustManager)
+        throws NoSuchAlgorithmException, KeyManagementException {
 
-                public void checkClientTrusted(final X509Certificate[] chain,
-                                               final String authType) {
-                }
+        final SSLContext context = SSLContext.getInstance("TLS");
+        context.init(null, new TrustManager[]{trustManager}, new SecureRandom());
+        return context.getSocketFactory();
+    }
 
-                public void checkServerTrusted(final X509Certificate[] chain,
-                                               final String authType) {
-                }
-            },
+    private static X509TrustManager getDefaultTrustManager()
+        throws NoSuchAlgorithmException, KeyStoreException {
+
+        final TrustManagerFactory trustManagerFactory =
+            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init((KeyStore) null);
+
+        for (final TrustManager trustManager : trustManagerFactory.getTrustManagers()) {
+            if (trustManager instanceof X509TrustManager) {
+                return (X509TrustManager) trustManager;
+            }
+        }
+
+        throw new NoSuchAlgorithmException("No X509TrustManager found");
+    }
+
+    private static TrustManager buildNoopTrustManager() {
+        return new X509TrustManager() {
+            public void checkClientTrusted(final X509Certificate[] chain, final String authType) {
+            }
+
+            public void checkServerTrusted(final X509Certificate[] chain, final String authType) {
+            }
+
+            public X509Certificate[] getAcceptedIssuers() {
+                return new X509Certificate[0];
+            }
         };
     }
 

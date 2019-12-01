@@ -231,6 +231,11 @@ Advanced TCP with TLS configuration:
         <retryDelay>3000</retryDelay>
         <poolSize>2</poolSize>
         <poolMaxWaitTime>5000</poolMaxWaitTime>
+        <trustedServerCertificate>
+            -----BEGIN CERTIFICATE-----
+            ...
+            -----END CERTIFICATE-----
+        </trustedServerCertificate>
         <trustAllCertificates>false</trustAllCertificates>
         <encoder class="de.siegmar.logbackgelf.GelfEncoder">
             <originHost>localhost</originHost>
@@ -303,6 +308,12 @@ Configuration
 `de.siegmar.logbackgelf.GelfTcpTlsAppender`
 
 * Everything from GelfTcpAppender
+* **trustedServerCertificate**: An optionally configured X.509 server certificate (PEM encoded) to
+  trust (whitelist). Can be configured multiple times to ease certification renewal.
+  If configured, the server needs to offer one of these certificates in order to allow
+  communication. The certificate offered by the server needs to be valid (not expired).
+  If this property is configured, the server's certificate chain is not validated in order to
+  allow self-signed certificates. Default: none.
 * **trustAllCertificates**: If true, trust all TLS certificates (even self signed certificates).
   You should not use this in production! Default: false.
 
