@@ -181,9 +181,9 @@ Find more advanced examples in the [examples directory](examples).
 * **trustedServerCertificate**: An optionally configured X.509 server certificate (PEM encoded) to
   trust (whitelist). Can be configured multiple times to ease certification renewal.
   If configured, the server needs to offer one of these certificates in order to allow
-  communication. The certificate offered by the server needs to be valid (not expired).
-  If this property is configured, the server's certificate chain is not validated in order to
-  allow self-signed certificates. Default: none.
+  communication. The certificate offered by the server needs to be valid (matching hostname and
+  not expired). If this property is configured, the server's certificate chain is not validated in
+  order to allow self-signed certificates. Default: none.
 * **insecure**: If true, skip the TLS certificate validation.
   You should not use this in production! Default: false.
 
