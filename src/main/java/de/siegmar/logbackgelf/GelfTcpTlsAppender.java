@@ -80,6 +80,12 @@ public class GelfTcpTlsAppender extends GelfTcpAppender {
             if (insecure) {
                 addWarn("Enabled insecure mode (skip TLS certificate validation)"
                     + " - don't use this in production!");
+
+                if (!trustedServerCertificates.isEmpty()) {
+                    throw new IllegalStateException("Configuration options 'insecure' and "
+                        + "'trustedServerCertificates' are mutually exclusive!");
+                }
+
                 trustManager = new NoopX509TrustManager();
             } else {
                 trustManager = new CustomX509TrustManager(defaultTrustManager(), getGraylogHost(),

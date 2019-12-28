@@ -26,8 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.security.cert.X509Certificate;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
@@ -42,6 +44,7 @@ import com.google.common.io.ByteStreams;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.core.status.Status;
 
 public class GelfTcpTlsAppenderTest {
 
@@ -61,6 +64,40 @@ public class GelfTcpTlsAppenderTest {
         server = new TcpServerRunnable();
         final Thread serverThread = new Thread(server);
         serverThread.start();
+    }
+
+    @Test
+    public void configurationError() throws Exception {
+        final LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+
+        final AtomicReference<Status> lastStatus = new AtomicReference<>();
+        lc.getStatusManager().add(lastStatus::set);
+
+        final GelfEncoder gelfEncoder = new GelfEncoder();
+        gelfEncoder.setContext(lc);
+        gelfEncoder.setOriginHost("localhost");
+        gelfEncoder.start();
+
+        final Logger logger = (Logger) LoggerFactory.getLogger(LOGGER_NAME);
+        logger.addAppender(buildAppender(lc, gelfEncoder));
+        logger.setAdditive(false);
+
+        final X509Certificate cert = new X509Util.CertBuilder()
+            .build(null, "foo.example.com");
+
+        final GelfTcpTlsAppender gelfAppender = new GelfTcpTlsAppender();
+        gelfAppender.setContext(lc);
+        gelfAppender.setName("GELF");
+        gelfAppender.setEncoder(gelfEncoder);
+        gelfAppender.setGraylogHost("localhost");
+        gelfAppender.setGraylogPort(server.getPort());
+        gelfAppender.setInsecure(true);
+        gelfAppender.addTrustedServerCertificate(X509Util.toPEM(cert));
+        gelfAppender.start();
+
+        final IllegalStateException e = (IllegalStateException) lastStatus.get().getThrowable();
+        assertEquals("Configuration options 'insecure' and 'trustedServerCertificates' "
+            + "are mutually exclusive!", e.getMessage());
     }
 
     @Test
