@@ -55,7 +55,7 @@ public class CustomX509TrustManagerTest {
 
     @SuppressWarnings("checkstyle:illegalcatch")
     @Test
-    public void selfSigned() throws Exception {
+    public void selfSigned() {
         // The default trust manager will reject a self-signed certificate
         try {
             validate(c.build(null, HOSTNAME));
@@ -140,6 +140,21 @@ public class CustomX509TrustManagerTest {
 
         assertThrows(CertificateException.class,
             () -> validate(cert, caBuilder.getCaCertificate()));
+    }
+
+    @Test
+    public void caSignedNotWhitelisted() throws Exception {
+        final X509Util.CABuilder caBuilder = new X509Util.CABuilder();
+        final X509Certificate cert = prepareCaSigned(caBuilder)
+            .build(HOSTNAME);
+
+        tm = new CustomX509TrustManager(defaultTrustManager(null), HOSTNAME,
+            Collections.singletonList(c.build(null, HOSTNAME)));
+
+        final CertificateException e = assertThrows(CertificateException.class,
+            () -> validate(cert, caBuilder.getCaCertificate()));
+
+        assertEquals("Server did not offer a whitelisted certificate", e.getMessage());
     }
 
     private void validate(final X509Certificate... certificates) throws CertificateException {

@@ -60,12 +60,16 @@ class CustomX509TrustManager implements X509TrustManager {
         // The first certificate is the server certificate
         final X509Certificate serverCert = chain[0];
 
-        if (trustedServerCertificates.contains(serverCert)) {
-            // Check if the certificate is valid. This is also done by the default trust manager.
-            serverCert.checkValidity();
-        } else {
+        if (trustedServerCertificates.isEmpty()) {
             // If not explicitly trusted, check via the default trust manager (chain validation)
             defaultTrustManager.checkServerTrusted(chain, authType);
+        } else {
+            if (!trustedServerCertificates.contains(serverCert)) {
+                throw new CertificateException("Server did not offer a whitelisted certificate");
+            }
+
+            // Check if the certificate is valid. This is also done by the default trust manager.
+            serverCert.checkValidity();
         }
 
         if (checkAlternativeNames(serverCert)) {
