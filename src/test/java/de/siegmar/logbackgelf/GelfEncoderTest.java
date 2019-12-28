@@ -19,19 +19,23 @@
 
 package de.siegmar.logbackgelf;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static java.time.Duration.ofMillis;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.slf4j.Marker;
+import org.slf4j.MarkerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,7 +53,7 @@ public class GelfEncoderTest {
 
     private final GelfEncoder encoder = new GelfEncoder();
 
-    @Before
+    @BeforeEach
     public void before() {
         encoder.setContext(new LoggerContext());
         encoder.setOriginHost("localhost");
@@ -86,7 +90,7 @@ public class GelfEncoderTest {
         assertTrue(logMsg.endsWith(System.lineSeparator()));
     }
 
-    @Test(timeout = 400L)
+    @Test
     public void nestedExceptionShouldNotFail() {
         encoder.setIncludeRootCauseData(true);
         encoder.start();
@@ -94,13 +98,15 @@ public class GelfEncoderTest {
         final LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
         final Logger logger = lc.getLogger(LOGGER_NAME);
 
-        final String logMsg = encodeToStr(simpleLoggingEvent(logger,
-            new IOException(new IOException(new IOException()))));
+        assertTimeout(ofMillis(400), () -> {
+            final String logMsg = encodeToStr(simpleLoggingEvent(logger,
+                new IOException(new IOException(new IOException()))));
 
-        assertNotNull(logMsg);
+            assertNotNull(logMsg);
+        });
     }
 
-    private LoggingEvent simpleLoggingEvent(final Logger logger, final Throwable e) {
+    public static LoggingEvent simpleLoggingEvent(final Logger logger, final Throwable e) {
         return new LoggingEvent(
             LOGGER_NAME,
             logger,
@@ -110,14 +116,14 @@ public class GelfEncoderTest {
             new Object[]{1});
     }
 
-    private void coreValidation(final JsonNode jsonNode) {
+    private static void coreValidation(final JsonNode jsonNode) {
         assertEquals("1.1", jsonNode.get("version").textValue());
         assertEquals("localhost", jsonNode.get("host").textValue());
         assertEquals("message 1", jsonNode.get("short_message").textValue());
         assertEquals(7, jsonNode.get("level").intValue());
     }
 
-    private void basicValidation(final JsonNode jsonNode) {
+    public static void basicValidation(final JsonNode jsonNode) {
         coreValidation(jsonNode);
         assertNotNull(jsonNode.get("_thread_name").textValue());
         assertEquals(LOGGER_NAME, jsonNode.get("_logger_name").textValue());
@@ -153,9 +159,8 @@ public class GelfEncoderTest {
         assertEquals("message 1", msg.readLine());
         assertEquals("java.lang.IllegalArgumentException: Example Exception", msg.readLine());
         final String line = msg.readLine();
-        assertTrue("Unexpected line: " + line, line.matches(
-            "^\tat de.siegmar.logbackgelf.GelfEncoderTest.exception"
-                + "\\(GelfEncoderTest.java:\\d+\\)$"));
+        assertTrue(line.matches("^\tat de.siegmar.logbackgelf.GelfEncoderTest.exception"
+            + "\\(GelfEncoderTest.java:\\d+\\)$"), "Unexpected line: " + line);
     }
 
     @Test
@@ -349,7 +354,7 @@ public class GelfEncoderTest {
         final JsonNode jsonNode = om.readTree(logMsg);
         basicValidation(jsonNode);
         final JsonNode httpStatus = jsonNode.get("_http_status");
-        assertEquals(200, httpStatus.asDouble(), 0);
+        assertEquals(200, httpStatus.asDouble());
         assertTrue(httpStatus.isNumber());
     }
 
@@ -373,6 +378,46 @@ public class GelfEncoderTest {
         final JsonNode httpStatus = jsonNode.get("_http_status");
         assertEquals("200", httpStatus.asText());
         assertFalse(httpStatus.isNumber());
+    }
+
+    @Test
+    public void singleMarker() throws IOException {
+        encoder.setLoggerNameKey("Logger");
+        encoder.start();
+
+        final LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+        final Logger logger = lc.getLogger(LOGGER_NAME);
+
+        final LoggingEvent event = simpleLoggingEvent(logger, null);
+        event.setMarker(MarkerFactory.getMarker("SINGLE"));
+
+        final String logMsg = encodeToStr(event);
+
+        final ObjectMapper om = new ObjectMapper();
+        final JsonNode jsonNode = om.readTree(logMsg);
+        coreValidation(jsonNode);
+        assertEquals("SINGLE", jsonNode.get("_marker").textValue());
+    }
+
+    @Test
+    public void multipleMarker() throws IOException {
+        encoder.setLoggerNameKey("Logger");
+        encoder.start();
+
+        final LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
+        final Logger logger = lc.getLogger(LOGGER_NAME);
+
+        final LoggingEvent event = simpleLoggingEvent(logger, null);
+        final Marker marker = MarkerFactory.getMarker("FIRST");
+        marker.add(MarkerFactory.getMarker("SECOND"));
+        event.setMarker(marker);
+
+        final String logMsg = encodeToStr(event);
+
+        final ObjectMapper om = new ObjectMapper();
+        final JsonNode jsonNode = om.readTree(logMsg);
+        coreValidation(jsonNode);
+        assertEquals("FIRST, SECOND", jsonNode.get("_marker").textValue());
     }
 
     private String encodeToStr(final LoggingEvent event) {

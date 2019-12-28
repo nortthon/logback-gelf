@@ -1,8 +1,27 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
-and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [3.0.0] - 2020-??-??
+### Added
+- Allow encoder subclasses to customize the message before it is converted to String
+  [\#40](https://github.com/osiegmar/logback-gelf/issues/40)
+- Server certificate hostname verification in `GelfTcpTlsAppender`.
+
+### Changed
+- Upgrade to Java 8 (Premier Support of Java 7 ended in July 2019)
+- Rename `trustAllCertificates` property of `GelfTcpTlsAppender` to `insecure`.
+
+## [2.2.0] - 2019-12-14
+### Added
+- Add customizable keys for the logger name and thread name (#41)
+  [\#41](https://github.com/osiegmar/logback-gelf/issues/41)
+
+### Fixed
+- Fix handling of multiple markers
+  [\#35](https://github.com/osiegmar/logback-gelf/issues/35)
 
 ## [2.1.2] - 2019-11-04
 ### Fixed
@@ -68,6 +87,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Initial release
 
+[Unreleased]: https://github.com/osiegmar/logback-gelf/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/osiegmar/logback-gelf/compare/v2.1.2...v2.2.0
 [2.1.2]: https://github.com/osiegmar/logback-gelf/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/osiegmar/logback-gelf/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/osiegmar/logback-gelf/compare/v2.0.1...v2.1.0
